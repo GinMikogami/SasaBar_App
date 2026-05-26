@@ -23,15 +23,13 @@ export default function AdminLayout({
     }
   }, [user, loading, router]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-bar-black flex items-center justify-center">
-        <div className="text-gold-500 text-2xl font-serif tracking-widest animate-pulse">
-          SASABar
-        </div>
+  if (loading) return (
+    <div className="min-h-screen bg-bar-black flex items-center justify-center">
+      <div className="text-gold-500 text-2xl font-serif tracking-widest animate-pulse">
+        SASABar
       </div>
-    );
-  }
+    </div>
+  );
 
   if (!user || user.role !== "admin") return null;
 

@@ -17,13 +17,6 @@
       ]
     },
     {
-      "collectionGroup": "qr_codes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {"fieldPath": "code", "order": "ASCENDING"}
-      ]
-    },
-    {
       "collectionGroup": "menus",
       "queryScope": "COLLECTION",
       "fields": [

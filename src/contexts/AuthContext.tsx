@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -30,32 +31,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-
-  async function loadUser(fbUser: FirebaseUser | null) {
-    if (!fbUser) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-    try {
-      const userData = await getUser(fbUser.uid);
-      setUser(userData);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const userCache = useRef<Record<string, User>>({});
 
   useEffect(() => {
     return onAuthChanged((fbUser) => {
       setFirebaseUser(fbUser);
-      loadUser(fbUser);
+
+      if (!fbUser) {
+        userCache.current = {};
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      // キャッシュがあれば即座に表示
+      if (userCache.current[fbUser.uid]) {
+        setUser(userCache.current[fbUser.uid]);
+        setLoading(false);
+        return;
+      }
+
+      // キャッシュなし: Firestoreから取得（loadingはtrueのまま）
+      getUser(fbUser.uid).then((userData) => {
+        if (userData) {
+          userCache.current[fbUser.uid] = userData;
+          setUser(userData);
+        }
+        setLoading(false);
+      }).catch(() => {
+        setLoading(false);
+      });
     });
   }, []);
 
   async function refreshUser() {
     if (firebaseUser) {
       const userData = await getUser(firebaseUser.uid);
-      setUser(userData);
+      if (userData) {
+        userCache.current[firebaseUser.uid] = userData;
+        setUser(userData);
+      }
     }
   }
 
