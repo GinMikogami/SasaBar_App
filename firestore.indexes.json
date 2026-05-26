@@ -1,0 +1,36 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "point_history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "userId", "order": "ASCENDING"},
+        {"fieldPath": "createdAt", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "userId", "order": "ASCENDING"},
+        {"fieldPath": "createdAt", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "qr_codes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "code", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "menus",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "isActive", "order": "ASCENDING"},
+        {"fieldPath": "category", "order": "ASCENDING"}
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
