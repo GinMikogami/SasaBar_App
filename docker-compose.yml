@@ -1,0 +1,19 @@
+services:
+  app:
+    build:
+      context: .
+      target: deps
+    image: sasabar-dev
+    working_dir: /app
+    command: npm run dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    env_file:
+      - .env.local
+    environment:
+      - WATCHPACK_POLLING=true
+    restart: unless-stopped
