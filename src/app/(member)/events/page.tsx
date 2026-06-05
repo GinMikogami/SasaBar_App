@@ -4,12 +4,19 @@ import { useEffect, useState } from "react";
 import { getEvents } from "@/lib/firebase/firestore";
 import { formatDate } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { Event } from "@/types";
 import { CalendarDays, Clock } from "lucide-react";
 
 export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Event | null>(null);
 
   useEffect(() => {
     getEvents()
@@ -39,7 +46,11 @@ export default function EventsPage() {
 
       <div className="space-y-4">
         {events.map((event) => (
-          <Card key={event.id} className="overflow-hidden hover:border-gold-500/20 transition-colors">
+          <Card
+            key={event.id}
+            className="overflow-hidden hover:border-gold-500/20 transition-colors cursor-pointer"
+            onClick={() => setSelected(event)}
+          >
             {event.imageUrl && (
               <div className="w-full h-48 bg-bar-dark">
                 <img
@@ -59,13 +70,40 @@ export default function EventsPage() {
                   {formatDate(event.startDate)}
                 </span>
               </div>
-              <p className="text-bar-muted text-sm leading-relaxed">
+              <p className="text-bar-muted text-sm leading-relaxed line-clamp-2 whitespace-pre-wrap">
                 {event.description}
               </p>
+              {event.description && event.description.length > 60 && (
+                <p className="text-gold-500/60 text-xs mt-1">タップして詳細を見る</p>
+              )}
             </CardContent>
           </Card>
         ))}
       </div>
+
+      <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+        {selected && (
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-gray-100 font-serif">{selected.title}</DialogTitle>
+            </DialogHeader>
+            {selected.imageUrl && (
+              <img
+                src={selected.imageUrl}
+                alt={selected.title}
+                className="w-full h-48 object-cover rounded-md"
+              />
+            )}
+            <div className="flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-gold-500 shrink-0" />
+              <span className="text-gold-400 text-xs">{formatDate(selected.startDate)}</span>
+            </div>
+            <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
+              {selected.description}
+            </p>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }

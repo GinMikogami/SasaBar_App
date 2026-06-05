@@ -14,7 +14,8 @@ export function formatDate(ts: Timestamp | Date | null | undefined): string {
   return format(date, "yyyy年MM月dd日 HH:mm", { locale: ja });
 }
 
-export function formatPoints(points: number): string {
+export function formatPoints(points: number | undefined | null): string {
+  if (points == null) return "0pt";
   return `${points.toLocaleString()}pt`;
 }
 

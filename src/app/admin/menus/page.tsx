@@ -23,13 +23,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { Menu } from "@/types";
 import { MENU_CATEGORIES } from "@/types";
 import { Plus, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
@@ -41,8 +34,9 @@ export default function MenusPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Menu | null>(null);
   const [saving, setSaving] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } =
+  const { register, handleSubmit, reset, setValue, formState: { errors } } =
     useForm<MenuInput>({ resolver: zodResolver(menuSchema) });
 
   async function load() {
@@ -52,19 +46,30 @@ export default function MenusPage() {
 
   useEffect(() => { load(); }, []);
 
+  function toggleCategory(cat: string) {
+    const next = selectedCategories.includes(cat)
+      ? selectedCategories.filter((c) => c !== cat)
+      : [...selectedCategories, cat];
+    setSelectedCategories(next);
+    setValue("categories", next, { shouldValidate: true });
+  }
+
   function openCreate() {
     setEditing(null);
-    reset({ name: "", description: "", pointCost: 0, category: "", imageUrl: "", isActive: true });
+    setSelectedCategories([]);
+    reset({ name: "", description: "", pointCost: 0, categories: [], imageUrl: "", isActive: true });
     setDialogOpen(true);
   }
 
   function openEdit(menu: Menu) {
     setEditing(menu);
+    const cats = menu.categories ?? [];
+    setSelectedCategories(cats);
     reset({
       name: menu.name,
       description: menu.description,
       pointCost: menu.pointCost,
-      category: menu.category,
+      categories: cats,
       imageUrl: menu.imageUrl,
       isActive: menu.isActive,
     });
@@ -126,11 +131,15 @@ export default function MenusPage() {
                     className="w-full h-32 object-cover rounded-md mb-3" />
                 )}
                 <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <Badge variant="secondary" className="text-[10px] mb-1">{menu.category}</Badge>
+                  <div className="flex-1 mr-2">
+                    <div className="flex flex-wrap gap-1 mb-1">
+                      {(menu.categories ?? []).map((cat) => (
+                        <Badge key={cat} variant="secondary" className="text-[10px]">{cat}</Badge>
+                      ))}
+                    </div>
                     <h3 className="text-gray-100 font-medium">{menu.name}</h3>
                   </div>
-                  <span className="text-gold-400 font-semibold text-sm">
+                  <span className="text-gold-400 font-semibold text-sm shrink-0">
                     {menu.pointCost.toLocaleString()}pt
                   </span>
                 </div>
@@ -168,28 +177,33 @@ export default function MenusPage() {
               <Input {...register("description")} placeholder="商品の説明" />
               {errors.description && <p className="text-red-400 text-xs">{errors.description.message}</p>}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label className="text-gray-300 text-xs">必要ポイント</Label>
-                <Input type="number" {...register("pointCost")} placeholder="300" />
-                {errors.pointCost && <p className="text-red-400 text-xs">{errors.pointCost.message}</p>}
+            <div className="space-y-2">
+              <Label className="text-gray-300 text-xs">必要ポイント</Label>
+              <Input type="number" {...register("pointCost")} placeholder="300" />
+              {errors.pointCost && <p className="text-red-400 text-xs">{errors.pointCost.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-300 text-xs">カテゴリ（複数選択可）</Label>
+              <div className="flex flex-wrap gap-2">
+                {MENU_CATEGORIES.map((cat) => {
+                  const active = selectedCategories.includes(cat);
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => toggleCategory(cat)}
+                      className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+                        active
+                          ? "bg-gold-500 border-gold-500 text-bar-black font-semibold"
+                          : "bg-transparent border-bar-border text-bar-muted hover:border-gold-500/50 hover:text-gray-300"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  );
+                })}
               </div>
-              <div className="space-y-2">
-                <Label className="text-gray-300 text-xs">カテゴリ</Label>
-                <Select
-                  onValueChange={(v) => setValue("category", v)}
-                  defaultValue={editing?.category}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MENU_CATEGORIES.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {errors.categories && <p className="text-red-400 text-xs">{errors.categories.message}</p>}
             </div>
             <div className="space-y-2">
               <Label className="text-gray-300 text-xs">画像URL (任意)</Label>
@@ -198,7 +212,7 @@ export default function MenusPage() {
             <DialogFooter>
               <Button type="button" variant="secondary" onClick={() => setDialogOpen(false)}>キャンセル</Button>
               <Button type="submit" variant="gold" disabled={saving}>
-                {saving ? "保存中..." : 編集 ? "更新" : "作成"}
+                {saving ? "保存中..." : editing ? "更新" : "作成"}
               </Button>
             </DialogFooter>
           </form>

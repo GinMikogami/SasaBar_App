@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginUser } from "@/lib/firebase/auth";
+import { getUser } from "@/lib/firebase/firestore";
 import { loginSchema, type LoginInput } from "@/lib/validations/auth";
 import { useToast } from "@/hooks/useToast";
 import { Button } from "@/components/ui/button";
@@ -29,8 +30,13 @@ export default function LoginPage() {
   async function onSubmit(data: LoginInput) {
     setLoading(true);
     try {
-      await loginUser(data.email, data.password);
-      router.push("/dashboard");
+      const credential = await loginUser(data.email, data.password);
+      const userData = await getUser(credential.user.uid);
+      if (userData?.role === "admin") {
+        router.push("/admin");
+      } else {
+        router.push("/dashboard");
+      }
     } catch (error: unknown) {
       const msg =
         error instanceof Error ? error.message : "ログインに失敗しました";

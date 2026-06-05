@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/useToast";
 import { Timestamp } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -27,6 +28,13 @@ import {
 import type { Event } from "@/types";
 import { Plus, Pencil, Trash2, CalendarDays } from "lucide-react";
 
+function getNowLocal() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 16);
+}
+
 export default function EventsAdminPage() {
   const { toast } = useToast();
   const [events, setEvents] = useState<Event[]>([]);
@@ -35,8 +43,10 @@ export default function EventsAdminPage() {
   const [editing, setEditing] = useState<Event | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const { register, handleSubmit, reset, formState: { errors } } =
+  const { register, handleSubmit, reset, watch, formState: { errors } } =
     useForm<EventInput>({ resolver: zodResolver(eventSchema) });
+
+  const descriptionValue = watch("description") ?? "";
 
   async function load() {
     setLoading(true);
@@ -47,7 +57,7 @@ export default function EventsAdminPage() {
 
   function openCreate() {
     setEditing(null);
-    reset({ title: "", description: "", startDate: "", imageUrl: "" });
+    reset({ title: "", description: "", startDate: getNowLocal(), imageUrl: "" });
     setDialogOpen(true);
   }
 
@@ -116,7 +126,7 @@ export default function EventsAdminPage() {
                   <CalendarDays className="w-3 h-3 text-gold-500" />
                   <span className="text-gold-400 text-xs">{formatDate(event.startDate)}</span>
                 </div>
-                <p className="text-bar-muted text-xs line-clamp-2 mb-3">{event.description}</p>
+                <p className="text-bar-muted text-xs line-clamp-2 mb-3 whitespace-pre-wrap">{event.description}</p>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => openEdit(event)}>
                     <Pencil className="w-3.5 h-3.5" />
@@ -135,7 +145,7 @@ export default function EventsAdminPage() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editing ? "イベント編集" : "イベント作成"}</DialogTitle>
           </DialogHeader>
@@ -147,12 +157,26 @@ export default function EventsAdminPage() {
             </div>
             <div className="space-y-2">
               <Label className="text-gray-300 text-xs">説明</Label>
-              <Input {...register("description")} placeholder="イベントの説明" />
+              <Textarea
+                {...register("description")}
+                placeholder="イベントの説明（Enterで改行できます）"
+                rows={4}
+              />
               {errors.description && <p className="text-red-400 text-xs">{errors.description.message}</p>}
+              {descriptionValue && (
+                <div className="rounded-md border border-bar-border bg-bar-dark px-3 py-2">
+                  <p className="text-[10px] text-gold-500/60 mb-1 tracking-wider">プレビュー</p>
+                  <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap">{descriptionValue}</p>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label className="text-gray-300 text-xs">開催日時</Label>
-              <Input type="datetime-local" {...register("startDate")} />
+              <Input
+                type="datetime-local"
+                min={getNowLocal()}
+                {...register("startDate")}
+              />
               {errors.startDate && <p className="text-red-400 text-xs">{errors.startDate.message}</p>}
             </div>
             <div className="space-y-2">

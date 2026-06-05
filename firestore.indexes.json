@@ -21,7 +21,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {"fieldPath": "isActive", "order": "ASCENDING"},
-        {"fieldPath": "category", "order": "ASCENDING"}
+        {"fieldPath": "createdAt", "order": "ASCENDING"}
       ]
     }
   ],

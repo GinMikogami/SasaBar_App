@@ -32,7 +32,7 @@ export interface Menu {
   description: string;
   imageUrl: string;
   pointCost: number;
-  category: string;
+  categories: string[];
   isActive: boolean;
   createdAt: Timestamp;
 }
@@ -63,11 +63,9 @@ export interface QRCode {
   id: string;
   code: string;
   point: number;
-  isUsed: boolean;
-  usedBy?: string;
-  expiresAt: Timestamp;
+  usedBy: string[];   // 使用済みユーザーIDの配列（複数人使用可）
   createdAt: Timestamp;
 }
 
-export const MENU_CATEGORIES = ["ドリンク", "フード", "おすすめ"] as const;
+export const MENU_CATEGORIES = ["アルコール", "ボトル", "ソフトドリンク", "フード", "おすすめ"] as const;
 export type MenuCategory = typeof MENU_CATEGORIES[number];

@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getPointHistory, getUserOrders } from "@/lib/firebase/firestore";
 import { logoutUser } from "@/lib/firebase/auth";
 import { formatDate, formatPoints, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/utils";
+import { useToast } from "@/hooks/useToast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,15 +17,25 @@ import { LogOut, TrendingUp, TrendingDown, Settings2 } from "lucide-react";
 export default function MyPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const [history, setHistory] = useState<PointHistory[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
 
   useEffect(() => {
-    if (user) {
-      getPointHistory(user.id).then(setHistory);
-      getUserOrders(user.id).then(setOrders);
-    }
-  }, [user]);
+    if (!user) return;
+    getPointHistory(user.id)
+      .then(setHistory)
+      .catch((e: unknown) => {
+        console.error("getPointHistory error:", e);
+        toast({ title: "ポイント履歴の取得に失敗しました", variant: "destructive" });
+      });
+    getUserOrders(user.id)
+      .then(setOrders)
+      .catch((e: unknown) => {
+        console.error("getUserOrders error:", e);
+        toast({ title: "注文履歴の取得に失敗しました", variant: "destructive" });
+      });
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleLogout() {
     await logoutUser();

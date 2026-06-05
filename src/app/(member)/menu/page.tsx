@@ -79,7 +79,7 @@ export default function MenuPage() {
 
         {allCategories.map((cat) => {
           const items =
-            cat === "すべて" ? menus : menus.filter((m) => m.category === cat);
+            cat === "すべて" ? menus : menus.filter((m) => (m.categories ?? []).includes(cat));
           return (
             <TabsContent key={cat} value={cat}>
               <div className="grid grid-cols-2 gap-3">
@@ -99,9 +99,11 @@ export default function MenuPage() {
                           />
                         </div>
                       )}
-                      <Badge variant="secondary" className="text-[10px] mb-2">
-                        {menu.category}
-                      </Badge>
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {(menu.categories ?? []).map((cat) => (
+                          <Badge key={cat} variant="secondary" className="text-[10px]">{cat}</Badge>
+                        ))}
+                      </div>
                       <h3 className="text-gray-100 text-sm font-medium">{menu.name}</h3>
                       <p className="text-bar-muted text-xs mt-1 line-clamp-2">
                         {menu.description}

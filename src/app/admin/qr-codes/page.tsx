@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { getAllQRCodes, createQRCode } from "@/lib/firebase/firestore";
@@ -28,17 +28,28 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { QRCode } from "@/types";
-import { Plus, QrCode, Download } from "lucide-react";
+import { Plus, QrCode, Download, Copy, Check } from "lucide-react";
 
 export default function QRCodesPage() {
   const { toast } = useToast();
   const [codes, setCodes] = useState<QRCode[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 生成ダイアログ
   const [dialogOpen, setDialogOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
+
+  // 生成済みコード（ページ内メモリ）
   const [generatedCodes, setGeneratedCodes] = useState<string[]>([]);
   const [qrImages, setQrImages] = useState<Record<string, string>>({});
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // QR表示モーダル
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewingQR, setViewingQR] = useState<QRCode | null>(null);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
+
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const { register, handleSubmit, reset, formState: { errors } } =
     useForm<QRCodeInput>({ resolver: zodResolver(qrcodeSchema) });
@@ -51,34 +62,56 @@ export default function QRCodesPage() {
   useEffect(() => { load(); }, []);
 
   async function generateQRImage(code: string): Promise<string> {
-    const QRCode = (await import("qrcode")).default;
-    return QRCode.toDataURL(code, {
-      width: 200,
+    const QRCodeLib = (await import("qrcode")).default;
+    return QRCodeLib.toDataURL(code, {
+      width: 256,
       margin: 2,
       color: { dark: "#0a0a0a", light: "#f0ead6" },
     });
   }
 
+  async function openViewModal(qr: QRCode) {
+    setViewingQR(qr);
+    setViewingImage(null);
+    setViewOpen(true);
+    setViewLoading(true);
+    try {
+      // メモリにキャッシュ済みなら再利用
+      const image = qrImages[qr.code] ?? await generateQRImage(qr.code);
+      setQrImages((prev) => ({ ...prev, [qr.code]: image }));
+      setViewingImage(image);
+    } catch (e: unknown) {
+      toast({ title: "QR生成エラー", description: e instanceof Error ? e.message : "失敗", variant: "destructive" });
+      setViewOpen(false);
+    } finally {
+      setViewLoading(false);
+    }
+  }
+
   async function onSubmit(data: QRCodeInput) {
     setGenerating(true);
-    const created: string[] = [];
     try {
-      for (let i = 0; i < data.count; i++) {
-        const code = await createQRCode(data.point, new Date(data.expiresAt));
-        created.push(code);
-      }
-      const images: Record<string, string> = {};
-      for (const code of created) {
-        images[code] = await generateQRImage(code);
-      }
-      setGeneratedCodes(created);
-      setQrImages(images);
-      toast({ title: `${data.count}件のQRコードを生成しました` });
+      const code = await createQRCode(data.point);
+      const image = await generateQRImage(code);
+      setGeneratedCodes((prev) => [code, ...prev]);
+      setQrImages((prev) => ({ ...prev, [code]: image }));
+      setDialogOpen(false);
+      toast({ title: "QRコードを生成しました" });
       load();
     } catch (e: unknown) {
       toast({ title: "エラー", description: e instanceof Error ? e.message : "失敗", variant: "destructive" });
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function copyToClipboard(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch {
+      toast({ title: "コピー失敗", description: "手動でコピーしてください", variant: "destructive" });
     }
   }
 
@@ -96,30 +129,36 @@ export default function QRCodesPage() {
           <h1 className="text-2xl font-serif text-gray-100 tracking-widest">QRコード管理</h1>
           <div className="mt-1 w-12 h-px gold-gradient" />
         </div>
-        <Button variant="gold" onClick={() => { setGeneratedCodes([]); setDialogOpen(true); reset(); }}>
+        <Button variant="gold" onClick={() => { reset({ point: undefined }); setDialogOpen(true); }}>
           <Plus className="w-4 h-4" /> QR生成
         </Button>
       </div>
 
-      {/* Generated QRs */}
+      {/* 生成直後パネル */}
       {generatedCodes.length > 0 && (
-        <Card className="mb-6">
+        <Card className="mb-6 border-gold-500/30">
           <CardContent className="pt-5">
             <p className="text-gold-400 text-sm font-semibold mb-4">生成されたQRコード</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {generatedCodes.map((code) => (
-                <div key={code} className="flex flex-col items-center gap-2">
+                <div key={code} className="flex gap-4 items-center bg-bar-surface rounded-lg p-3 border border-bar-border">
                   {qrImages[code] && (
-                    <img src={qrImages[code]} alt={code} className="w-32 h-32 rounded" />
+                    <img src={qrImages[code]} alt={code} className="w-24 h-24 rounded flex-shrink-0" />
                   )}
-                  <p className="text-xs text-bar-muted text-center break-all">{code}</p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => downloadQR(code, qrImages[code])}
-                  >
-                    <Download className="w-3 h-3" />
-                  </Button>
+                  <div className="flex flex-col gap-2 min-w-0 flex-1">
+                    <p className="text-xs text-bar-muted">手動入力コード</p>
+                    <p className="font-mono text-sm text-gray-100 break-all leading-relaxed">{code}</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => copyToClipboard(code)}>
+                        {copiedCode === code
+                          ? <><Check className="w-3 h-3 text-green-400" /> コピー済</>
+                          : <><Copy className="w-3 h-3" /> コピー</>}
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => downloadQR(code, qrImages[code])}>
+                        <Download className="w-3 h-3" /> DL
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -127,6 +166,7 @@ export default function QRCodesPage() {
         </Card>
       )}
 
+      {/* 一覧テーブル */}
       <Card>
         <CardContent className="p-0">
           {loading ? (
@@ -135,25 +175,40 @@ export default function QRCodesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>QRコード</TableHead>
+                  <TableHead>手動入力コード</TableHead>
                   <TableHead>ポイント</TableHead>
-                  <TableHead>有効期限</TableHead>
-                  <TableHead>ステータス</TableHead>
+                  <TableHead>使用人数</TableHead>
                   <TableHead>作成日</TableHead>
+                  <TableHead className="w-24"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {codes.map((qr) => (
                   <TableRow key={qr.id}>
-                    <TableCell className="font-mono text-xs text-gray-300">{qr.code}</TableCell>
-                    <TableCell className="text-gold-400 font-semibold">{qr.point.toLocaleString()}pt</TableCell>
-                    <TableCell className="text-bar-muted text-xs">{formatDate(qr.expiresAt)}</TableCell>
                     <TableCell>
-                      <Badge variant={qr.isUsed ? "secondary" : "success"}>
-                        {qr.isUsed ? "使用済" : "未使用"}
-                      </Badge>
+                      <span className="font-mono text-sm text-gray-100 select-all">{qr.code}</span>
+                    </TableCell>
+                    <TableCell className="text-gold-400 font-semibold">{qr.point.toLocaleString()}pt</TableCell>
+                    <TableCell>
+                      {(qr.usedBy ?? []).length > 0 ? (
+                        <Badge variant="success">{(qr.usedBy ?? []).length}人</Badge>
+                      ) : (
+                        <span className="text-bar-muted text-xs">未使用</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-bar-muted text-xs">{formatDate(qr.createdAt)}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openViewModal(qr)} title="QRを表示">
+                          <QrCode className="w-3.5 h-3.5 text-bar-muted" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => copyToClipboard(qr.code)} title="コードをコピー">
+                          {copiedCode === qr.code
+                            ? <Check className="w-3.5 h-3.5 text-green-400" />
+                            : <Copy className="w-3.5 h-3.5 text-bar-muted" />}
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -168,6 +223,7 @@ export default function QRCodesPage() {
         </CardContent>
       </Card>
 
+      {/* QR生成ダイアログ */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -176,17 +232,8 @@ export default function QRCodesPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
             <div className="space-y-2">
               <Label className="text-gray-300 text-xs">ポイント数</Label>
-              <Input type="number" {...register("point")} placeholder="500" min="1" />
+              <Input type="number" {...register("point")} placeholder="1000" min="1" />
               {errors.point && <p className="text-red-400 text-xs">{errors.point.message}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label className="text-gray-300 text-xs">有効期限</Label>
-              <Input type="datetime-local" {...register("expiresAt")} />
-              {errors.expiresAt && <p className="text-red-400 text-xs">{errors.expiresAt.message}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label className="text-gray-300 text-xs">発行枚数</Label>
-              <Input type="number" {...register("count")} placeholder="1" min="1" max="100" />
             </div>
             <DialogFooter>
               <Button type="button" variant="secondary" onClick={() => setDialogOpen(false)}>キャンセル</Button>
@@ -198,7 +245,43 @@ export default function QRCodesPage() {
           </form>
         </DialogContent>
       </Dialog>
-      <canvas ref={canvasRef} className="hidden" />
+
+      {/* QR表示モーダル */}
+      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>QRコード</DialogTitle>
+          </DialogHeader>
+          {viewingQR && (
+            <div className="flex flex-col items-center gap-4 py-2">
+              {viewLoading ? (
+                <div className="w-48 h-48 flex items-center justify-center">
+                  <p className="text-bar-muted text-sm animate-pulse">生成中...</p>
+                </div>
+              ) : viewingImage ? (
+                <img src={viewingImage} alt={viewingQR.code} className="w-48 h-48 rounded" />
+              ) : null}
+              <div className="w-full space-y-1">
+                <p className="text-xs text-bar-muted">手動入力コード</p>
+                <p className="font-mono text-sm text-gray-100 break-all">{viewingQR.code}</p>
+                <p className="text-gold-400 text-sm font-semibold">{viewingQR.point.toLocaleString()}pt</p>
+              </div>
+              <div className="flex gap-2 w-full">
+                <Button variant="outline" className="flex-1" onClick={() => copyToClipboard(viewingQR.code)}>
+                  {copiedCode === viewingQR.code
+                    ? <><Check className="w-4 h-4 text-green-400" /> コピー済</>
+                    : <><Copy className="w-4 h-4" /> コピー</>}
+                </Button>
+                {viewingImage && (
+                  <Button variant="outline" className="flex-1" onClick={() => downloadQR(viewingQR.code, viewingImage)}>
+                    <Download className="w-4 h-4" /> DL
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

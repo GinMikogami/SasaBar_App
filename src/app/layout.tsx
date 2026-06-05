@@ -28,9 +28,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
-      <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-      </head>
+      <head />
       <body className="min-h-screen bg-bar-black text-[#f0ead6] antialiased">
         <AuthProvider>
           {children}

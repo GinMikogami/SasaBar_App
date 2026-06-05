@@ -12,7 +12,6 @@ import {
   limit,
   serverTimestamp,
   runTransaction,
-  Timestamp,
   onSnapshot,
 } from "firebase/firestore";
 import { db } from "./config";
@@ -86,26 +85,30 @@ export async function getPointHistory(uid: string): Promise<PointHistory[]> {
 
 // ── QR Codes ───────────────────────────────────────────
 export async function redeemQRCode(code: string, uid: string): Promise<number> {
+  // トランザクション外でドキュメント参照を取得（queryはtx.getで使えないため）
+  const qrSnap = await getDocs(
+    query(collection(db, "qr_codes"), where("code", "==", code))
+  );
+  if (qrSnap.empty) throw new Error("QRコードが見つかりません");
+  const qrRef = qrSnap.docs[0].ref;
+
   return runTransaction(db, async (tx) => {
-    const qrSnap = await getDocs(
-      query(collection(db, "qr_codes"), where("code", "==", code))
-    );
-    if (qrSnap.empty) throw new Error("QRコードが見つかりません");
-
-    const qrDoc = qrSnap.docs[0];
-    const qrData = qrDoc.data() as QRCode;
-
-    if (qrData.isUsed) throw new Error("このQRコードは既に使用済みです");
-    if (qrData.expiresAt.toDate() < new Date())
-      throw new Error("このQRコードは有効期限切れです");
-
-    tx.update(qrDoc.ref, { isUsed: true, usedBy: uid });
-
+    // 読み取りをすべて先に実行
+    const qrDoc = await tx.get(qrRef);
     const userRef = doc(db, "users", uid);
     const userSnap = await tx.get(userRef);
+
+    // バリデーション
+    if (!qrDoc.exists()) throw new Error("QRコードが見つかりません");
+    const qrData = qrDoc.data() as QRCode;
+
+    const usedBy: string[] = qrData.usedBy ?? [];
+    if (usedBy.includes(uid)) throw new Error("このQRコードは既に使用済みです");
     if (!userSnap.exists()) throw new Error("User not found");
 
+    // 書き込みをすべて後に実行
     const current = userSnap.data().points as number;
+    tx.update(qrRef, { usedBy: [...usedBy, uid] });
     tx.update(userRef, {
       points: current + qrData.point,
       updatedAt: serverTimestamp(),
@@ -125,18 +128,14 @@ export async function redeemQRCode(code: string, uid: string): Promise<number> {
   });
 }
 
-export async function createQRCode(
-  point: number,
-  expiresAt: Date
-): Promise<string> {
+export async function createQRCode(point: number): Promise<string> {
   const code = `SASABAR-${point}-${Date.now()}`;
   const ref = doc(collection(db, "qr_codes"));
   await addDoc(collection(db, "qr_codes"), {
     id: ref.id,
     code,
     point,
-    isUsed: false,
-    expiresAt: Timestamp.fromDate(expiresAt),
+    usedBy: [],
     createdAt: serverTimestamp(),
   });
   return code;
@@ -152,13 +151,11 @@ export async function getAllQRCodes(): Promise<QRCode[]> {
 // ── Menus ──────────────────────────────────────────────
 export async function getActiveMenus(): Promise<Menu[]> {
   const snap = await getDocs(
-    query(
-      collection(db, "menus"),
-      where("isActive", "==", true),
-      orderBy("category")
-    )
+    query(collection(db, "menus"), where("isActive", "==", true))
   );
-  return snap.docs.map((d) => d.data() as Menu);
+  return snap.docs
+    .map((d) => d.data() as Menu)
+    .sort((a, b) => (a.createdAt?.toMillis() ?? 0) - (b.createdAt?.toMillis() ?? 0));
 }
 
 export async function getAllMenus(): Promise<Menu[]> {
